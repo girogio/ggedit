@@ -401,11 +401,12 @@ impl Editor {
         let mut status;
         let width = self.terminal.size().width as usize;
         let mut file_name = "[No Name]".to_string();
+        let dirty_indicator = if self.document.is_dirty() { " [+]" } else { "" };
         if let Some(name) = &self.document.file_name {
             file_name = name.clone();
             file_name.truncate(20);
         }
-        status = format!("{} - {} lines", file_name, self.document.len());
+        status = format!("{}{}", file_name, dirty_indicator,);
 
         let mode_indicator: String = format!(" [ {} ] ", self.mode.to_string());
 

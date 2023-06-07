@@ -226,9 +226,11 @@ impl Editor {
                         .split_ascii_whitespace()
                         .collect::<Vec<&str>>();
 
+                    let force = command_buffer_args.get(0).unwrap().ends_with('!');
+
                     match command_buffer_args[0] {
-                        "q" => {
-                            if self.document.is_dirty() {
+                        "q" | "q!" => {
+                            if self.document.is_dirty() && !force {
                                 self.status_message = StatusMessage::from(
                                     "File has unsaved changes. Use :wq to save and quit, or :q! to quit without saving.".to_string(),
                                 );

@@ -13,6 +13,24 @@ const STATUS_BG_COLOR: color::Rgb = color::Rgb(255, 255, 255);
 const STATUS_FG_COLOR: color::Rgb = color::Rgb(23, 23, 23);
 const EMPTY_LINE_COLOR: color::Rgb = color::Rgb(204, 102, 255);
 
+pub enum Mode {
+    Normal,
+    Insert,
+    Command,
+    Visual,
+}
+
+impl Mode {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Normal => String::from("Normal"),
+            Self::Insert => String::from("Insert"),
+            Self::Command => String::from("Command"),
+            Self::Visual => String::from("Visual"),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Position {
     pub x: usize,
@@ -31,6 +49,7 @@ pub struct Editor {
     offset: Position,
     document: Document,
     status_message: StatusMessage,
+    mode: Mode,
 }
 
 impl StatusMessage {
@@ -77,6 +96,7 @@ impl Editor {
             cursor_position: Position::default(),
             offset: Position::default(),
             status_message: StatusMessage::from(initial_status),
+            mode: Mode::Normal,
         }
     }
 
@@ -100,21 +120,40 @@ impl Editor {
     }
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key = Terminal::read_key()?;
-        match pressed_key {
-            Key::Ctrl('q') => self.should_quit = true,
-            Key::Up
-            | Key::Down
-            | Key::Left
-            | Key::Right
-            | Key::PageUp
-            | Key::PageDown
-            | Key::End
-            | Key::Home => self.move_cursor(pressed_key),
+
+        match self.mode {
+            Mode::Normal => match pressed_key {
+                Key::Char('i') => self.mode = Mode::Insert,
+                // Key::Char(':') => self.mode = Mode::Command,
+                // Key::Char('v') => self.mode = Mode::Visual,
+                Key::Up
+                | Key::Down
+                | Key::Left
+                | Key::Right
+                | Key::Char('h')
+                | Key::Char('j')
+                | Key::Char('k')
+                | Key::Char('l')
+                | Key::PageUp
+                | Key::PageDown
+                | Key::End
+                | Key::Home => self.move_cursor(pressed_key),
+                Key::Ctrl('q') => self.should_quit = true,
+                _ => (),
+            },
+
+            Mode::Insert => match pressed_key {
+                Key::Esc => self.mode = Mode::Normal,
+                Key::Up | Key::Down | Key::Left | Key::Right => self.move_cursor(pressed_key),
+                _ => (),
+            },
+
             _ => (),
         }
         self.scroll();
         Ok(())
     }
+
     fn scroll(&mut self) {
         let Position { x, y } = self.cursor_position;
         let width = self.terminal.size().cols as usize;
@@ -131,6 +170,7 @@ impl Editor {
             offset.x = x.saturating_sub(width).saturating_add(1);
         }
     }
+
     fn move_cursor(&mut self, key: Key) {
         let Position { mut y, mut x } = self.cursor_position;
         let height = self.document.len();
@@ -141,13 +181,13 @@ impl Editor {
             0
         };
         match key {
-            Key::Up => y = y.saturating_sub(1),
-            Key::Down => {
+            Key::Up | Key::Char('k') => y = y.saturating_sub(1),
+            Key::Down | Key::Char('j') => {
                 if y < height {
                     y = y.saturating_add(1);
                 }
             }
-            Key::Left => {
+            Key::Left | Key::Char('h') => {
                 if x > 0 {
                     x -= 1;
                 } else if y > 0 {
@@ -159,7 +199,7 @@ impl Editor {
                     }
                 }
             }
-            Key::Right => {
+            Key::Right | Key::Char('l') => {
                 if x < width {
                     x += 1;
                 } else if y < height {
@@ -212,11 +252,11 @@ impl Editor {
     }
 
     pub fn draw_row(&self, row: &Row) {
-        let width = self.terminal.size().cols as usize;
+        let terminal_width = self.terminal.size().cols as usize;
         let start = self.offset.x;
-        let end = self.offset.x + width;
+        let end = self.offset.x + terminal_width;
         let row = row.render(start, end);
-        println!("{}\r", row)
+        println!("{}\r", row);
     }
 
     fn draw_rows(&self) {
@@ -245,6 +285,8 @@ impl Editor {
         }
         status = format!("{} - {} lines", file_name, self.document.len());
 
+        let mode_indicator: String = format!(" [ {} ] ", self.mode.to_string());
+
         let line_indicator = format!(
             "{}/{}",
             self.cursor_position.y.saturating_add(1),
@@ -252,9 +294,9 @@ impl Editor {
         );
         let len = status.len() + line_indicator.len();
         if width > len {
-            status.push_str(&" ".repeat(width - len));
+            status.push_str(&" ".repeat(width - len - mode_indicator.len()));
         }
-        status = format!("{}{}", status, line_indicator);
+        status = format!("{}{}{}", status, mode_indicator, line_indicator);
         status.truncate(width);
         Terminal::set_bg_color(STATUS_BG_COLOR);
         Terminal::set_fg_color(STATUS_FG_COLOR);

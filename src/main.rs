@@ -2,6 +2,7 @@
 #![allow(
     clippy::missing_docs_in_private_items,
     clippy::implicit_return,
+    clippy::missing_errors_doc,
     clippy::shadow_reuse,
     clippy::print_stdout,
     clippy::wildcard_enum_match_arm,

@@ -82,7 +82,7 @@ impl Editor {
 
         Self {
             should_quit: false,
-            terminal: Terminal::default().expect("Failed to initialize terminal"),
+            terminal: Terminal::default(),
             document: if args.len() > 1 {
                 match Document::open(&args[1]) {
                     Ok(doc) => doc,
@@ -154,12 +154,12 @@ impl Editor {
                 // Command mutators
                 Key::Char('i') => {
                     self.mode = Mode::Insert;
-                    Terminal::change_cursor_style(CursorStyle::Bar);
+                    Terminal::change_cursor_style(&CursorStyle::Bar);
                 }
                 Key::Char('a') => {
                     self.move_cursor(Key::Right);
                     self.mode = Mode::Insert;
-                    Terminal::change_cursor_style(CursorStyle::Bar);
+                    Terminal::change_cursor_style(&CursorStyle::Bar);
                 }
                 Key::Char(':') => {
                     self.mode = Mode::Command;
@@ -189,7 +189,7 @@ impl Editor {
                 Key::Esc => {
                     self.mode = Mode::Normal;
                     self.move_cursor(Key::Left);
-                    Terminal::change_cursor_style(CursorStyle::Block);
+                    Terminal::change_cursor_style(&CursorStyle::Block);
                 }
                 // Movement keys
                 Key::Up | Key::Down | Key::Left | Key::Right => self.move_cursor(pressed_key),
@@ -218,7 +218,7 @@ impl Editor {
                 Key::Esc => {
                     self.mode = Mode::Normal;
                     self.command_buffer.clear();
-                    Terminal::change_cursor_style(CursorStyle::Block);
+                    Terminal::change_cursor_style(&CursorStyle::Block);
                 }
                 Key::Char('\n') => {
                     let command_buffer_args = self
@@ -340,20 +340,20 @@ impl Editor {
             }
             Key::PageUp => {
                 y = if y > terminal_height {
-                    y - terminal_height
+                    y.saturating_sub(terminal_height)
                 } else {
                     0
                 }
             }
             Key::PageDown => {
                 y = if y.saturating_add(terminal_height) < height {
-                    y + terminal_height
+                    y.saturating_add(terminal_height)
                 } else {
                     height
                 }
             }
-            Key::Home => x = 0,
-            Key::End => x = width,
+            Key::Home | Key::Char('0') => x = 0,
+            Key::End | Key::Char('$') => x = width,
             _ => (),
         }
 
@@ -386,7 +386,7 @@ impl Editor {
     pub fn draw_row(&self, row: &Row) {
         let terminal_width = self.terminal.size().width as usize;
         let start = self.offset.x;
-        let end = self.offset.x + terminal_width;
+        let end = self.offset.x.saturating_add(terminal_width);
         let row = row.render(start, end);
         println!("{}\r", row);
     }
@@ -395,7 +395,10 @@ impl Editor {
         let height = self.terminal.size().height;
         for terminal_row in 0..height {
             Terminal::clear_current_line();
-            if let Some(row) = self.document.row(terminal_row as usize + self.offset.y) {
+            if let Some(row) = self
+                .document
+                .row(self.offset.y.saturating_add(terminal_row as usize))
+            {
                 self.draw_row(row);
             } else if self.document.is_empty() && terminal_row == height / 3 {
                 self.draw_welcome_message();
@@ -427,9 +430,15 @@ impl Editor {
         );
         let len = status.len() + line_indicator.len();
         if width > len {
-            status.push_str(&" ".repeat(width - len - mode_indicator.len()));
+            status.push_str(
+                &" ".repeat(
+                    width
+                        .saturating_sub(len)
+                        .saturating_sub(mode_indicator.len()),
+                ),
+            );
         }
-        status = format!("{}{}{}", status, mode_indicator, line_indicator);
+        status = format!("{status}{mode_indicator}{line_indicator}");
         status.truncate(width);
         Terminal::set_bg_color(STATUS_BG_COLOR);
         Terminal::set_fg_color(STATUS_FG_COLOR);

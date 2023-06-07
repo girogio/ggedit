@@ -1,4 +1,5 @@
 use crate::Position;
+use std::default;
 use std::io::{self, Write};
 use termion::color;
 use termion::cursor;
@@ -22,17 +23,30 @@ pub enum CursorStyle {
     Underline,
 }
 
-impl Terminal {
-    pub fn default() -> Result<Self, std::io::Error> {
-        let size = termion::terminal_size()?;
-        Ok(Self {
+impl default::Default for Terminal {
+    fn default() -> Terminal {
+        let size = termion::terminal_size().unwrap();
+        Terminal {
             size: Size {
                 width: size.0,
                 height: size.1.saturating_sub(2),
             },
-            _stdout: io::stdout().into_raw_mode()?,
-        })
+            _stdout: io::stdout().into_raw_mode().unwrap(),
+        }
     }
+}
+
+impl Terminal {
+    // pub trait default() -> Result<Self, std::io::Error> {
+    //     let size = termion::terminal_size()?;
+    //     Ok(Self {
+    //         size: Size {
+    //             width: size.0,
+    //             height: size.1.saturating_sub(2),
+    //         },
+    //         _stdout: io::stdout().into_raw_mode()?,
+    //     })
+    // }
     pub fn size(&self) -> &Size {
         &self.size
     }
@@ -93,8 +107,8 @@ impl Terminal {
         print!("{}", color::Fg(color::Reset));
     }
 
-    pub fn change_cursor_style(style: CursorStyle) {
-        match style {
+    pub fn change_cursor_style(style: &CursorStyle) {
+        match *style {
             CursorStyle::Bar => print!("{}", cursor::BlinkingBar),
             CursorStyle::Block => print!("{}", cursor::SteadyBlock),
             CursorStyle::Underline => print!("{}", cursor::SteadyUnderline),

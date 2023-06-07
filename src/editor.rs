@@ -11,6 +11,7 @@ use termion::event::Key;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const STATUS_BG_COLOR: color::Rgb = color::Rgb(255, 255, 255);
 const STATUS_FG_COLOR: color::Rgb = color::Rgb(23, 23, 23);
+const EMPTY_LINE_COLOR: color::Rgb = color::Rgb(204, 102, 255);
 
 #[derive(Default)]
 pub struct Position {
@@ -227,7 +228,9 @@ impl Editor {
             } else if self.document.is_empty() && terminal_row == height / 3 {
                 self.draw_welcome_message();
             } else {
+                Terminal::set_fg_color(EMPTY_LINE_COLOR);
                 println!("~\r");
+                Terminal::reset_fg_color();
             }
         }
     }

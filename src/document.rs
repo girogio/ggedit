@@ -11,7 +11,7 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn open_file(filename: &str) -> Result<Self, std::io::Error> {
+    pub fn open(filename: &str) -> Result<Self, std::io::Error> {
         let contents = fs::read_to_string(filename)?;
         let mut rows = Vec::new();
         for value in contents.lines() {

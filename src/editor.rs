@@ -84,7 +84,7 @@ impl Editor {
             should_quit: false,
             terminal: Terminal::default().expect("Failed to initialize terminal"),
             document: if args.len() > 1 {
-                match Document::open_file(&args[1]) {
+                match Document::open(&args[1]) {
                     Ok(doc) => doc,
                     Err(error) => {
                         initial_status = format!("Error opening file: {}", error);
@@ -227,7 +227,15 @@ impl Editor {
                         .collect::<Vec<&str>>();
 
                     match command_buffer_args[0] {
-                        "q" => self.should_quit = true,
+                        "q" => {
+                            if self.document.is_dirty() {
+                                self.status_message = StatusMessage::from(
+                                    "File has unsaved changes. Use :wq to save and quit, or :q! to quit without saving.".to_string(),
+                                );
+                            } else {
+                                self.should_quit = true;
+                            }
+                        }
                         "w" => {
                             if command_buffer_args.len() > 1 {
                                 self.document.file_name = Some(command_buffer_args[1].to_string());

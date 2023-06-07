@@ -222,13 +222,24 @@ impl Editor {
                 Key::Char('\n') => {
                     self.mode = Mode::Normal;
                     Terminal::change_cursor_style(CursorStyle::Block);
-                    match self.command_buffer.as_str() {
-                        "q" => self.should_quit = true,
-                        _ => {
-                            self.status_message = StatusMessage::from(format!(
-                                "Unrecognized command: {}",
-                                self.command_buffer
-                            ))
+                    for c in self.command_buffer.chars() {
+                        match c {
+                            'w' => {
+                                if self.document.save().is_ok() {
+                                    self.status_message =
+                                        StatusMessage::from("File saved successfully".to_string());
+                                } else {
+                                    self.status_message =
+                                        StatusMessage::from("Error saving file".to_string());
+                                }
+                            }
+                            'q' => self.should_quit = true,
+                            _ => {
+                                self.status_message = StatusMessage::from(format!(
+                                    "Unrecognized command: {}",
+                                    self.command_buffer
+                                ))
+                            }
                         }
                     }
                     self.command_buffer.clear();

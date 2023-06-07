@@ -118,7 +118,6 @@ impl Editor {
         };
         if self.should_quit {
             Terminal::clear_screen();
-            println!("Goodbye.\r");
         } else {
             self.draw_rows();
             self.draw_status_bar();
@@ -404,7 +403,11 @@ impl Editor {
                 self.draw_welcome_message();
             } else {
                 Terminal::set_fg_color(EMPTY_LINE_COLOR);
-                println!("~\r");
+                if terminal_row != 0 {
+                    println!("~\r");
+                } else {
+                    println!("\r");
+                }
                 Terminal::reset_fg_color();
             }
         }

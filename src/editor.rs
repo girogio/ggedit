@@ -1,3 +1,4 @@
+use crate::terminal::CursorStyle;
 use crate::Document;
 use crate::Row;
 use crate::Terminal;
@@ -16,7 +17,7 @@ const EMPTY_LINE_COLOR: color::Rgb = color::Rgb(204, 102, 255);
 pub enum Mode {
     Normal,
     Insert,
-    // Command,
+    Command,
     // Visual,
 }
 
@@ -25,8 +26,7 @@ impl Mode {
         match self {
             Self::Normal => String::from("Normal"),
             Self::Insert => String::from("Insert"),
-            // Self::Command => String::from("Command"),
-            // Self::Visual => String::from("Visual"),
+            Self::Command => String::from("Command"),
         }
     }
 }
@@ -50,6 +50,7 @@ pub struct Editor {
     document: Document,
     status_message: StatusMessage,
     mode: Mode,
+    command_buffer: String,
 }
 
 impl StatusMessage {
@@ -97,12 +98,24 @@ impl Editor {
             offset: Position::default(),
             status_message: StatusMessage::from(initial_status),
             mode: Mode::Normal,
+            command_buffer: String::new(),
         }
     }
 
     fn refresh_screen(&self) -> Result<(), std::io::Error> {
         Terminal::hide_cursor();
-        Terminal::cursor_position(&Position::default());
+        {
+            let position = &Position::default();
+            #[allow(clippy::cast_possible_truncation)]
+            let Position { mut x, mut y } = position;
+            x = x.saturating_add(1);
+            y = y.saturating_add(1);
+
+            let x = x as u16;
+            let y = y as u16;
+
+            print!("{}", termion::cursor::Goto(x, y));
+        };
         if self.should_quit {
             Terminal::clear_screen();
             println!("Goodbye.\r");
@@ -110,23 +123,48 @@ impl Editor {
             self.draw_rows();
             self.draw_status_bar();
             self.draw_message_bar();
-            Terminal::cursor_position(&Position {
-                x: self.cursor_position.x.saturating_sub(self.offset.x),
-                y: self.cursor_position.y.saturating_sub(self.offset.y),
-            });
+            if !matches!(self.mode, Mode::Command) {
+                {
+                    let position = &Position {
+                        x: self.cursor_position.x.saturating_sub(self.offset.x),
+                        y: self.cursor_position.y.saturating_sub(self.offset.y),
+                    };
+                    #[allow(clippy::cast_possible_truncation)]
+                    let Position { mut x, mut y } = position;
+                    x = x.saturating_add(1);
+                    y = y.saturating_add(1);
+
+                    let x = x as u16;
+                    let y = y as u16;
+
+                    print!("{}", termion::cursor::Goto(x, y));
+                };
+            }
         }
         Terminal::show_cursor();
         Terminal::flush()
     }
+
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key = Terminal::read_key()?;
 
         match self.mode {
+            // While in normal mode
             Mode::Normal => match pressed_key {
-                Key::Char('i') | Key::Char('a') => {
+                // Command mutators
+                Key::Char('i') => {
                     self.mode = Mode::Insert;
+                    Terminal::change_cursor_style(CursorStyle::Bar);
                 }
-                // Key::Char(':') => self.mode = Mode::Command,
+                Key::Char('a') => {
+                    self.move_cursor(Key::Right);
+                    self.mode = Mode::Insert;
+                    Terminal::change_cursor_style(CursorStyle::Bar);
+                }
+                Key::Char(':') => {
+                    self.mode = Mode::Command;
+                    self.status_message = StatusMessage::from(String::from(":"));
+                }
                 // Key::Char('v') => self.mode = Mode::Visual,
                 Key::Up
                 | Key::Down
@@ -145,9 +183,14 @@ impl Editor {
                 _ => (),
             },
 
+            // While in insert mode
             Mode::Insert => match pressed_key {
                 // Mode mutators
-                Key::Esc => self.mode = Mode::Normal,
+                Key::Esc => {
+                    self.mode = Mode::Normal;
+                    self.move_cursor(Key::Left);
+                    Terminal::change_cursor_style(CursorStyle::Block);
+                }
                 // Movement keys
                 Key::Up | Key::Down | Key::Left | Key::Right => self.move_cursor(pressed_key),
                 // Insertable characters
@@ -165,7 +208,38 @@ impl Editor {
                 }
                 _ => (),
             },
-            // _ => (),
+
+            // While in command mode
+            Mode::Command => match pressed_key {
+                Key::Backspace => {
+                    self.command_buffer.pop();
+                }
+                Key::Esc => {
+                    self.mode = Mode::Normal;
+                    self.command_buffer.clear();
+                    Terminal::change_cursor_style(CursorStyle::Block);
+                }
+                Key::Char('\n') => {
+                    self.mode = Mode::Normal;
+                    Terminal::change_cursor_style(CursorStyle::Block);
+                    match self.command_buffer.as_str() {
+                        "q" => self.should_quit = true,
+                        _ => {
+                            self.status_message = StatusMessage::from(format!(
+                                "Unrecognized command: {}",
+                                self.command_buffer
+                            ))
+                        }
+                    }
+                    self.command_buffer.clear();
+                }
+                Key::Char(c) => {
+                    self.command_buffer.push(c);
+                    self.status_message =
+                        StatusMessage::from(format! {":{}",  self.command_buffer});
+                }
+                _ => (),
+            },
         }
         self.scroll();
         Ok(())
@@ -173,8 +247,8 @@ impl Editor {
 
     fn scroll(&mut self) {
         let Position { x, y } = self.cursor_position;
-        let width = self.terminal.size().cols as usize;
-        let height = self.terminal.size().rows as usize;
+        let width = self.terminal.size().width as usize;
+        let height = self.terminal.size().height as usize;
         let mut offset = &mut self.offset;
         if y < offset.y {
             offset.y = y;
@@ -191,7 +265,7 @@ impl Editor {
     fn move_cursor(&mut self, key: Key) {
         let Position { mut y, mut x } = self.cursor_position;
         let height = self.document.len();
-        let terminal_height = self.terminal.size().rows as usize;
+        let terminal_height = self.terminal.size().height as usize;
         let mut width = if let Some(row) = self.document.row(y) {
             row.len()
         } else {
@@ -200,7 +274,7 @@ impl Editor {
         match key {
             Key::Up | Key::Char('k') => y = y.saturating_sub(1),
             Key::Down | Key::Char('j') => {
-                if y < height {
+                if y < height - 1 {
                     y = y.saturating_add(1);
                 }
             }
@@ -243,7 +317,8 @@ impl Editor {
             _ => (),
         }
 
-        // If the cursor is at the end of a line, it should stay there when the user presses the down arrow key.
+        // If the cursor is at the end of a line, it should stay there when the
+        // user presses the down arrow key.
         width = if let Some(row) = self.document.row(y) {
             row.len()
         } else {
@@ -259,7 +334,7 @@ impl Editor {
 
     fn draw_welcome_message(&self) {
         let mut welcome_message = format!("ggedit v{}", VERSION);
-        let width = self.terminal.size().cols as usize;
+        let width = self.terminal.size().width as usize;
         let len = welcome_message.len();
         let padding = width.saturating_sub(len) / 2;
         let spaces = " ".repeat(padding.saturating_sub(1));
@@ -269,7 +344,7 @@ impl Editor {
     }
 
     pub fn draw_row(&self, row: &Row) {
-        let terminal_width = self.terminal.size().cols as usize;
+        let terminal_width = self.terminal.size().width as usize;
         let start = self.offset.x;
         let end = self.offset.x + terminal_width;
         let row = row.render(start, end);
@@ -277,7 +352,7 @@ impl Editor {
     }
 
     fn draw_rows(&self) {
-        let height = self.terminal.size().rows;
+        let height = self.terminal.size().height;
         for terminal_row in 0..height {
             Terminal::clear_current_line();
             if let Some(row) = self.document.row(terminal_row as usize + self.offset.y) {
@@ -294,7 +369,7 @@ impl Editor {
 
     fn draw_status_bar(&self) {
         let mut status;
-        let width = self.terminal.size().cols as usize;
+        let width = self.terminal.size().width as usize;
         let mut file_name = "[No Name]".to_string();
         if let Some(name) = &self.document.file_name {
             file_name = name.clone();
@@ -327,7 +402,7 @@ impl Editor {
         let message = &self.status_message;
         if Instant::now() - message.time < Duration::new(5, 0) {
             let mut text = message.text.clone();
-            text.truncate(self.terminal.size().cols as usize);
+            text.truncate(self.terminal.size().width as usize);
             print!("{}", text);
         }
     }

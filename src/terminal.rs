@@ -1,13 +1,14 @@
 use crate::Position;
 use std::io::{self, Write};
 use termion::color;
+use termion::cursor;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
 pub struct Size {
-    pub rows: u16,
-    pub cols: u16,
+    pub height: u16,
+    pub width: u16,
 }
 
 pub struct Terminal {
@@ -15,13 +16,19 @@ pub struct Terminal {
     _stdout: RawTerminal<std::io::Stdout>,
 }
 
+pub enum CursorStyle {
+    Bar,
+    Block,
+    Underline,
+}
+
 impl Terminal {
     pub fn default() -> Result<Self, std::io::Error> {
         let size = termion::terminal_size()?;
         Ok(Self {
             size: Size {
-                cols: size.0,
-                rows: size.1.saturating_sub(2),
+                width: size.0,
+                height: size.1.saturating_sub(2),
             },
             _stdout: io::stdout().into_raw_mode()?,
         })
@@ -84,5 +91,13 @@ impl Terminal {
 
     pub fn reset_fg_color() {
         print!("{}", color::Fg(color::Reset));
+    }
+
+    pub fn change_cursor_style(style: CursorStyle) {
+        match style {
+            CursorStyle::Bar => print!("{}", cursor::BlinkingBar),
+            CursorStyle::Block => print!("{}", cursor::SteadyBlock),
+            CursorStyle::Underline => print!("{}", cursor::SteadyUnderline),
+        }
     }
 }

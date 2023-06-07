@@ -16,8 +16,8 @@ const EMPTY_LINE_COLOR: color::Rgb = color::Rgb(204, 102, 255);
 pub enum Mode {
     Normal,
     Insert,
-    Command,
-    Visual,
+    // Command,
+    // Visual,
 }
 
 impl Mode {
@@ -25,8 +25,8 @@ impl Mode {
         match self {
             Self::Normal => String::from("Normal"),
             Self::Insert => String::from("Insert"),
-            Self::Command => String::from("Command"),
-            Self::Visual => String::from("Visual"),
+            // Self::Command => String::from("Command"),
+            // Self::Visual => String::from("Visual"),
         }
     }
 }
@@ -123,7 +123,9 @@ impl Editor {
 
         match self.mode {
             Mode::Normal => match pressed_key {
-                Key::Char('i') => self.mode = Mode::Insert,
+                Key::Char('i') | Key::Char('a') => {
+                    self.mode = Mode::Insert;
+                }
                 // Key::Char(':') => self.mode = Mode::Command,
                 // Key::Char('v') => self.mode = Mode::Visual,
                 Key::Up
@@ -134,6 +136,7 @@ impl Editor {
                 | Key::Char('j')
                 | Key::Char('k')
                 | Key::Char('l')
+                | Key::Backspace
                 | Key::PageUp
                 | Key::PageDown
                 | Key::End
@@ -143,12 +146,26 @@ impl Editor {
             },
 
             Mode::Insert => match pressed_key {
+                // Mode mutators
                 Key::Esc => self.mode = Mode::Normal,
+                // Movement keys
                 Key::Up | Key::Down | Key::Left | Key::Right => self.move_cursor(pressed_key),
+                // Insertable characters
+                Key::Char(c) => {
+                    self.document.insert(&self.cursor_position, c);
+                    self.move_cursor(Key::Right);
+                }
+                // Deletion
+                Key::Delete => self.document.delete(&self.cursor_position),
+                Key::Backspace => {
+                    if self.cursor_position.x > 0 || self.cursor_position.y > 0 {
+                        self.move_cursor(Key::Left);
+                        self.document.delete(&self.cursor_position);
+                    }
+                }
                 _ => (),
             },
-
-            _ => (),
+            // _ => (),
         }
         self.scroll();
         Ok(())
@@ -187,7 +204,7 @@ impl Editor {
                     y = y.saturating_add(1);
                 }
             }
-            Key::Left | Key::Char('h') => {
+            Key::Left | Key::Char('h') | Key::Backspace => {
                 if x > 0 {
                     x -= 1;
                 } else if y > 0 {

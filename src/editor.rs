@@ -213,6 +213,7 @@ impl Editor {
             Mode::Command => match pressed_key {
                 Key::Backspace => {
                     self.command_buffer.pop();
+                    self.status_message = StatusMessage::from(format!(":{}", self.command_buffer));
                 }
                 Key::Esc => {
                     self.mode = Mode::Normal;
@@ -220,40 +221,58 @@ impl Editor {
                     Terminal::change_cursor_style(CursorStyle::Block);
                 }
                 Key::Char('\n') => {
-                    self.mode = Mode::Normal;
-                    Terminal::change_cursor_style(CursorStyle::Block);
-                    for c in self.command_buffer.chars() {
-                        match c {
-                            'w' => {
-                                if self.document.save().is_ok() {
-                                    self.status_message =
-                                        StatusMessage::from("File saved successfully".to_string());
-                                } else {
-                                    self.status_message =
-                                        StatusMessage::from("Error saving file".to_string());
-                                }
+                    let command_buffer_args = self
+                        .command_buffer
+                        .split_ascii_whitespace()
+                        .collect::<Vec<&str>>();
+
+                    match command_buffer_args[0] {
+                        "q" => self.should_quit = true,
+                        "w" => {
+                            if command_buffer_args.len() > 1 {
+                                self.document.file_name = Some(command_buffer_args[1].to_string());
                             }
-                            'q' => self.should_quit = true,
-                            _ => {
-                                self.status_message = StatusMessage::from(format!(
-                                    "Unrecognized command: {}",
-                                    self.command_buffer
-                                ))
+                            self.save();
+                        }
+                        "wq" => {
+                            if command_buffer_args.len() > 1 {
+                                self.document.file_name = Some(command_buffer_args[1].to_string());
                             }
+                            self.save();
+                            self.should_quit = true;
+                        }
+                        _ => {
+                            self.status_message = StatusMessage::from(format!(
+                                "Unrecognized command: {}",
+                                command_buffer_args[0]
+                            ))
                         }
                     }
+                    self.mode = Mode::Normal;
                     self.command_buffer.clear();
                 }
                 Key::Char(c) => {
                     self.command_buffer.push(c);
-                    self.status_message =
-                        StatusMessage::from(format! {":{}",  self.command_buffer});
+                    self.status_message = StatusMessage::from(format!(":{}", self.command_buffer));
                 }
                 _ => (),
             },
         }
+
         self.scroll();
         Ok(())
+    }
+
+    fn save(&mut self) {
+        if self.document.file_name.is_none() {
+            self.status_message = StatusMessage::from("No filename provided".to_string());
+            return;
+        }
+        self.document.save().unwrap();
+        self.status_message = StatusMessage::from(format!(
+            "Wrote to \"{}\"",
+            self.document.file_name.as_ref().unwrap()
+        ));
     }
 
     fn scroll(&mut self) {
@@ -285,7 +304,7 @@ impl Editor {
         match key {
             Key::Up | Key::Char('k') => y = y.saturating_sub(1),
             Key::Down | Key::Char('j') => {
-                if y < height - 1 {
+                if y < height {
                     y = y.saturating_add(1);
                 }
             }

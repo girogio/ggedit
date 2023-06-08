@@ -1,3 +1,5 @@
+use termion::color;
+
 use crate::Position;
 use crate::Row;
 use std::fs;
@@ -157,6 +159,15 @@ impl Document {
             }
             std::cmp::Ordering::Greater => {}
         }
+    }
+
+    pub fn find(&self, query: &str) -> Option<Position> {
+        for (y, row) in self.rows.iter().enumerate() {
+            if let Some(x) = row.find(query) {
+                return Some(Position { x, y });
+            }
+        }
+        None
     }
 
     pub fn is_empty(&self) -> bool {

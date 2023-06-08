@@ -75,10 +75,26 @@ impl Row {
         self.len = length;
         self.string = result;
     }
+
     pub fn append(&mut self, new: &Self) {
         self.string = format!("{}{}", self.string, new.string);
         self.len += new.len;
     }
+
+    pub fn find(&self, query: &str) -> Option<usize> {
+        let matching_bytes_index = self.string.find(query);
+        if let Some(index) = matching_bytes_index {
+            for (grapheme_index, (byte_index, _)) in
+                self.string[..].grapheme_indices(true).enumerate()
+            {
+                if byte_index == index {
+                    return Some(grapheme_index);
+                }
+            }
+        }
+        None
+    }
+
     pub fn split(&mut self, at: usize) -> Self {
         let mut row: String = String::new();
         let mut length = 0;
@@ -101,6 +117,7 @@ impl Row {
             len: splitted_length,
         }
     }
+
     pub fn as_bytes(&self) -> &[u8] {
         self.string.as_bytes()
     }

@@ -37,16 +37,6 @@ impl default::Default for Terminal {
 }
 
 impl Terminal {
-    // pub trait default() -> Result<Self, std::io::Error> {
-    //     let size = termion::terminal_size()?;
-    //     Ok(Self {
-    //         size: Size {
-    //             width: size.0,
-    //             height: size.1.saturating_sub(2),
-    //         },
-    //         _stdout: io::stdout().into_raw_mode()?,
-    //     })
-    // }
     pub fn size(&self) -> &Size {
         &self.size
     }

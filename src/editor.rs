@@ -18,6 +18,7 @@ pub enum Mode {
     Normal,
     Insert,
     Command,
+    Search(Position),
     // Visual,
 }
 
@@ -27,11 +28,12 @@ impl Mode {
             Self::Normal => String::from("Normal"),
             Self::Insert => String::from("Insert"),
             Self::Command => String::from("Command"),
+            Self::Search(Position) => String::from("Search"),
         }
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -153,7 +155,7 @@ impl Editor {
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key = Terminal::read_key()?;
 
-        match self.mode {
+        match &self.mode {
             // While in normal mode
             Mode::Normal => match pressed_key {
                 // Command mutators
@@ -170,7 +172,12 @@ impl Editor {
                     self.mode = Mode::Command;
                     self.status_message = StatusMessage::from(String::from(":"));
                 }
-                // Key::Char('v') => self.mode = Mode::Visual,
+                Key::Char('/') => {
+                    self.mode = Mode::Search(self.cursor_position.clone());
+                    self.status_message = StatusMessage::from(String::from("/"));
+                }
+
+                // Movement keys
                 Key::Up
                 | Key::Down
                 | Key::Left
@@ -276,23 +283,39 @@ impl Editor {
                 }
                 _ => (),
             },
+
+            Mode::Search(position) => match pressed_key {
+                Key::Backspace => {
+                    self.command_buffer.pop();
+                    self.status_message = StatusMessage::from(format!("/{}", self.command_buffer));
+                }
+                Key::Esc => {
+                    self.command_buffer.clear();
+                    self.status_message = StatusMessage::from(String::from(""));
+                    self.cursor_position = position.clone();
+                    self.mode = Mode::Normal;
+                    Terminal::change_cursor_style(&CursorStyle::Block);
+                }
+                Key::Char(c) => {
+                    self.command_buffer.push(c);
+                    if let Some(position) = self.document.find(&self.command_buffer) {
+                        self.cursor_position = position;
+                        self.scroll();
+                    } else {
+                        self.status_message = StatusMessage::from(format!(
+                            "No results for search: {}",
+                            self.command_buffer
+                        ));
+                    }
+                    self.status_message = StatusMessage::from(format!("/{}", self.command_buffer));
+                }
+                _ => (),
+            },
         }
 
         self.scroll();
         Ok(())
     }
-
-    // fn save(&mut self) {
-    //     if self.document.file_name.is_none() {
-    //         self.status_message = StatusMessage::from("No filename provided".to_string());
-    //         return;
-    //     }
-    //     self.document.save().unwrap();
-    //     self.status_message = StatusMessage::from(format!(
-    //         "Wrote to \"{}\"",
-    //         self.document.file_name.as_ref().unwrap()
-    //     ));
-    // }
 
     fn scroll(&mut self) {
         let Position { x, y } = self.cursor_position;

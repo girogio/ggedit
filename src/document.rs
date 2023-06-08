@@ -10,6 +10,21 @@ pub struct Document {
     dirty: bool,
 }
 
+// open with overriden file_name
+impl From<&str> for Document {
+    fn from(s: &str) -> Self {
+        Self {
+            rows: Vec::new(),
+            file_name: if s.is_empty() {
+                Default::default()
+            } else {
+                Some(s.to_string())
+            },
+            dirty: true,
+        }
+    }
+}
+
 impl Document {
     pub fn open(filename: &str) -> Result<Self, std::io::Error> {
         let contents = fs::read_to_string(filename)?;
@@ -24,16 +39,69 @@ impl Document {
         })
     }
 
-    pub fn save(&mut self) -> Result<(), Error> {
+    pub fn save_as(&mut self, filename: Option<&&str>) -> Result<String, Error> {
+        if self.is_empty() && !self.is_dirty() {
+            return Err(Error::new(std::io::ErrorKind::Other, "Document is empty"));
+        }
+        let prev_name = self.file_name.clone();
+        match filename {
+            Some(filename) => {
+                if let Some(file_name) = &self.file_name {
+                    // if the file name is the same as the current file name
+                    // then just save the file
+                    if filename == file_name {
+                        self.dirty = false;
+                        self.save()
+                    } else {
+                        self.file_name = Some(filename.to_string()); // change the file name TEMPORARILY
+                        match self.save() {
+                            // then save the file
+                            Ok(message) => {
+                                self.file_name = prev_name; // change the file name back
+                                Ok(message)
+                            }
+                            Err(e) => {
+                                self.file_name = prev_name; // change the file name back
+                                Err(e)
+                            }
+                        }
+                    }
+                } else {
+                    self.file_name = Some(filename.to_string());
+                    self.dirty = false;
+                    self.save()
+                }
+            }
+
+            None => match self.save() {
+                Ok(message) => {
+                    self.dirty = false;
+                    Ok(message)
+                }
+                Err(e) => Err(e),
+            },
+        }
+    }
+
+    pub fn save(&mut self) -> Result<String, Error> {
         if let Some(file_name) = &self.file_name {
             let mut file = fs::File::create(file_name)?;
             for row in &self.rows {
                 file.write_all(row.as_bytes())?;
                 file.write_all(b"\n")?;
             }
-            self.dirty = false;
+            Ok(format!(
+                "\"{}\" {}L, {}B written",
+                file_name,
+                self.len(),
+                self.size_in_bytes()
+            ))
+        } else {
+            Err(Error::new(
+                std::io::ErrorKind::Other,
+                "Document has no file name",
+            ))
         }
-        Ok(())
     }
 
     pub fn row(&self, index: usize) -> Option<&Row> {
@@ -100,5 +168,13 @@ impl Document {
     }
     pub fn is_dirty(&self) -> bool {
         self.dirty
+    }
+
+    pub fn size_in_bytes(&self) -> usize {
+        let mut size = 0;
+        for row in &self.rows {
+            size += row.len() + 1;
+        }
+        size
     }
 }

@@ -80,10 +80,10 @@ impl Editor {
         let args: Vec<String> = env::args().collect();
         let mut initial_status = String::from("Press Ctrl-Q to quit");
 
-        Self {
-            should_quit: false,
-            terminal: Terminal::default(),
-            document: if args.len() > 1 {
+        let doc = if args.len() > 1 {
+            if !std::path::Path::new(&args[1]).exists() {
+                Document::from(args[1].as_str())
+            } else {
                 match Document::open(&args[1]) {
                     Ok(doc) => doc,
                     Err(error) => {
@@ -91,9 +91,15 @@ impl Editor {
                         Document::default()
                     }
                 }
-            } else {
-                Document::default()
-            },
+            }
+        } else {
+            Document::default()
+        };
+
+        Self {
+            should_quit: false,
+            terminal: Terminal::default(),
+            document: doc,
             cursor_position: Position::default(),
             offset: Position::default(),
             status_message: StatusMessage::from(initial_status),
@@ -237,19 +243,26 @@ impl Editor {
                                 self.should_quit = true;
                             }
                         }
-                        "w" => {
-                            if command_buffer_args.len() > 1 {
-                                self.document.file_name = Some(command_buffer_args[1].to_string());
+                        "w" => match self.document.save_as(command_buffer_args.get(1)) {
+                            Ok(message) => self.status_message = StatusMessage::from(message),
+                            Err(e) => {
+                                self.status_message = StatusMessage::from(
+                                    "Error writing file: ".to_string() + &e.to_string(),
+                                );
                             }
-                            self.save();
-                        }
-                        "wq" => {
-                            if command_buffer_args.len() > 1 {
-                                self.document.file_name = Some(command_buffer_args[1].to_string());
-                            }
-                            self.save();
-                            self.should_quit = true;
-                        }
+                        },
+                        // "wq" => {
+                        //     if command_buffer_args.len() > 1 {
+                        //         match self.document.save_as(command_buffer_args.get(1)) {
+                        //             Ok(_) => self.should_quit = true,
+                        //             Err(e) => {
+                        //                 self.status_message = StatusMessage::from(
+                        //                     "Error writing file: ".to_string() + &e.to_string(),
+                        //                 );
+                        //             }
+                        //         }
+                        //     }
+                        // }
                         _ => {
                             self.status_message = StatusMessage::from(format!(
                                 "Unrecognized command: {}",
@@ -272,17 +285,17 @@ impl Editor {
         Ok(())
     }
 
-    fn save(&mut self) {
-        if self.document.file_name.is_none() {
-            self.status_message = StatusMessage::from("No filename provided".to_string());
-            return;
-        }
-        self.document.save().unwrap();
-        self.status_message = StatusMessage::from(format!(
-            "Wrote to \"{}\"",
-            self.document.file_name.as_ref().unwrap()
-        ));
-    }
+    // fn save(&mut self) {
+    //     if self.document.file_name.is_none() {
+    //         self.status_message = StatusMessage::from("No filename provided".to_string());
+    //         return;
+    //     }
+    //     self.document.save().unwrap();
+    //     self.status_message = StatusMessage::from(format!(
+    //         "Wrote to \"{}\"",
+    //         self.document.file_name.as_ref().unwrap()
+    //     ));
+    // }
 
     fn scroll(&mut self) {
         let Position { x, y } = self.cursor_position;

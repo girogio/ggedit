@@ -251,18 +251,15 @@ impl Editor {
                                 );
                             }
                         },
-                        // "wq" => {
-                        //     if command_buffer_args.len() > 1 {
-                        //         match self.document.save_as(command_buffer_args.get(1)) {
-                        //             Ok(_) => self.should_quit = true,
-                        //             Err(e) => {
-                        //                 self.status_message = StatusMessage::from(
-                        //                     "Error writing file: ".to_string() + &e.to_string(),
-                        //                 );
-                        //             }
-                        //         }
-                        //     }
-                        // }
+                        "wq" => {
+                            match self.document.save_as(command_buffer_args.get(1)) {
+                                Ok(message) => self.status_message = StatusMessage::from(message),
+                                Err(e) => {
+                                    self.status_message = StatusMessage::from(e.to_string());
+                                }
+                            }
+                            self.should_quit = true;
+                        }
                         _ => {
                             self.status_message = StatusMessage::from(format!(
                                 "Unrecognized command: {}",

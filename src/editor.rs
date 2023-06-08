@@ -18,7 +18,7 @@ pub enum Mode {
     Normal,
     Insert,
     Command,
-    Search(Position),
+    Search(),
     // Visual,
 }
 
@@ -28,7 +28,7 @@ impl Mode {
             Self::Normal => String::from("Normal"),
             Self::Insert => String::from("Insert"),
             Self::Command => String::from("Command"),
-            Self::Search(Position) => String::from("Search"),
+            Self::Search() => String::from("Search"),
         }
     }
 }
@@ -53,6 +53,7 @@ pub struct Editor {
     status_message: StatusMessage,
     mode: Mode,
     command_buffer: String,
+    position_buffer: Position,
 }
 
 impl StatusMessage {
@@ -107,6 +108,7 @@ impl Editor {
             status_message: StatusMessage::from(initial_status),
             mode: Mode::Normal,
             command_buffer: String::new(),
+            position_buffer: Position::default(),
         }
     }
 
@@ -173,7 +175,8 @@ impl Editor {
                     self.status_message = StatusMessage::from(String::from(":"));
                 }
                 Key::Char('/') => {
-                    self.mode = Mode::Search(self.cursor_position.clone());
+                    self.mode = Mode::Search();
+                    self.position_buffer = self.cursor_position.clone();
                     self.status_message = StatusMessage::from(String::from("/"));
                 }
 
@@ -284,33 +287,61 @@ impl Editor {
                 _ => (),
             },
 
-            Mode::Search(position) => match pressed_key {
-                Key::Backspace => {
-                    self.command_buffer.pop();
-                    self.status_message = StatusMessage::from(format!("/{}", self.command_buffer));
-                }
-                Key::Esc => {
-                    self.command_buffer.clear();
-                    self.status_message = StatusMessage::from(String::from(""));
-                    self.cursor_position = position.clone();
-                    self.mode = Mode::Normal;
-                    Terminal::change_cursor_style(&CursorStyle::Block);
-                }
-                Key::Char(c) => {
-                    self.command_buffer.push(c);
-                    if let Some(position) = self.document.find(&self.command_buffer) {
-                        self.cursor_position = position;
-                        self.scroll();
-                    } else {
-                        self.status_message = StatusMessage::from(format!(
-                            "No results for search: {}",
-                            self.command_buffer
-                        ));
+            Mode::Search() => {
+                match pressed_key {
+                    Key::Backspace => {
+                        self.command_buffer.pop();
+                        self.status_message =
+                            StatusMessage::from(format!("/{}", self.command_buffer));
                     }
-                    self.status_message = StatusMessage::from(format!("/{}", self.command_buffer));
-                }
-                _ => (),
-            },
+                    Key::Esc => {
+                        self.command_buffer.clear();
+                        self.status_message = StatusMessage::from(String::from(""));
+                        self.cursor_position = self.position_buffer.clone();
+                        self.mode = Mode::Normal;
+                        Terminal::change_cursor_style(&CursorStyle::Block);
+                    }
+                    Key::Char('\n') => {}
+
+                    Key::Char('n') => {
+                        self.move_cursor(Key::Right);
+                        if let Some(position) = self
+                            .document
+                            .find(&self.command_buffer, &self.cursor_position)
+                        {
+                            self.cursor_position = position;
+                            self.scroll();
+                        } else {
+                            self.move_cursor(Key::Left);
+                            self.status_message = StatusMessage::from(format!(
+                                "No results for search: {}",
+                                self.command_buffer
+                            ));
+                        }
+                        self.status_message =
+                            StatusMessage::from(format!("/{}", self.command_buffer));
+                    }
+
+                    Key::Char(c) => {
+                        self.command_buffer.push(c);
+                        if let Some(position) = self
+                            .document
+                            .find(&self.command_buffer, &self.position_buffer)
+                        {
+                            self.cursor_position = position;
+                            self.scroll();
+                        } else {
+                            self.status_message = StatusMessage::from(format!(
+                                "No results for search: {}",
+                                self.command_buffer
+                            ));
+                        }
+                        self.status_message =
+                            StatusMessage::from(format!("/{}", self.command_buffer));
+                    }
+                    _ => (),
+                };
+            }
         }
 
         self.scroll();

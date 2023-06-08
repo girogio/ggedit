@@ -81,14 +81,15 @@ impl Row {
         self.len += new.len;
     }
 
-    pub fn find(&self, query: &str) -> Option<usize> {
-        let matching_bytes_index = self.string.find(query);
-        if let Some(index) = matching_bytes_index {
+    pub fn find(&self, query: &str, after: usize) -> Option<usize> {
+        let substring: String = self.string[..].graphemes(true).skip(after).collect();
+        let matching_byte_index = substring.find(query);
+        if let Some(index) = matching_byte_index {
             for (grapheme_index, (byte_index, _)) in
-                self.string[..].grapheme_indices(true).enumerate()
+                substring[..].grapheme_indices(true).enumerate()
             {
                 if byte_index == index {
-                    return Some(grapheme_index);
+                    return Some(after + grapheme_index);
                 }
             }
         }

@@ -18,8 +18,14 @@ pub enum Mode {
     Normal,
     Insert,
     Command,
-    Search(),
+    Search,
     // Visual,
+}
+
+#[derive(PartialEq, Copy, Clone)]
+pub enum SearchDirection {
+    Forward,
+    Backward,
 }
 
 impl Mode {
@@ -28,7 +34,7 @@ impl Mode {
             Self::Normal => String::from("Normal"),
             Self::Insert => String::from("Insert"),
             Self::Command => String::from("Command"),
-            Self::Search() => String::from("Search"),
+            Self::Search => String::from("Search"),
         }
     }
 }
@@ -175,7 +181,7 @@ impl Editor {
                     self.status_message = StatusMessage::from(String::from(":"));
                 }
                 Key::Char('/') => {
-                    self.mode = Mode::Search();
+                    self.mode = Mode::Search;
                     self.position_buffer = self.cursor_position.clone();
                     self.status_message = StatusMessage::from(String::from("/"));
                 }
@@ -287,10 +293,18 @@ impl Editor {
                 _ => (),
             },
 
-            Mode::Search() => {
+            Mode::Search => {
                 match pressed_key {
                     Key::Backspace => {
                         self.command_buffer.pop();
+                        if let Some(position) = self.document.find(
+                            &self.command_buffer,
+                            &self.cursor_position,
+                            SearchDirection::Forward,
+                        ) {
+                            self.cursor_position = position;
+                            self.scroll();
+                        }
                         self.status_message =
                             StatusMessage::from(format!("/{}", self.command_buffer));
                     }
@@ -301,33 +315,62 @@ impl Editor {
                         self.mode = Mode::Normal;
                         Terminal::change_cursor_style(&CursorStyle::Block);
                     }
-                    Key::Char('\n') => {}
+                    Key::Char('\n') => loop {
+                        let directional_key = Terminal::read_key()?;
 
-                    Key::Char('n') => {
-                        self.move_cursor(Key::Right);
-                        if let Some(position) = self
-                            .document
-                            .find(&self.command_buffer, &self.cursor_position)
-                        {
-                            self.cursor_position = position;
-                            self.scroll();
-                        } else {
-                            self.move_cursor(Key::Left);
-                            self.status_message = StatusMessage::from(format!(
-                                "No results for search: {}",
-                                self.command_buffer
-                            ));
+                        match directional_key {
+                            Key::Esc => {
+                                self.command_buffer.clear();
+                                self.status_message = StatusMessage::from(String::from(""));
+                                self.cursor_position = self.position_buffer.clone();
+                                self.mode = Mode::Normal;
+                                Terminal::change_cursor_style(&CursorStyle::Block);
+                                break;
+                            }
+
+                            Key::Char('n') | Key::Char('N') => {
+                                if directional_key == Key::Char('N') {
+                                    self.move_cursor(Key::Left);
+                                } else {
+                                    self.move_cursor(Key::Right);
+                                }
+                                if let Some(position) = self.document.find(
+                                    &self.command_buffer,
+                                    &self.cursor_position,
+                                    match directional_key {
+                                        Key::Char('N') => SearchDirection::Backward,
+                                        _ => SearchDirection::Forward,
+                                    },
+                                ) {
+                                    self.cursor_position = position;
+                                    self.scroll();
+                                } else {
+                                    if directional_key == Key::Char('N') {
+                                        self.move_cursor(Key::Right);
+                                    } else {
+                                        self.move_cursor(Key::Left);
+                                    }
+                                    self.status_message = StatusMessage::from(format!(
+                                        ":{} - No results for search",
+                                        self.command_buffer
+                                    ));
+                                }
+                                self.status_message =
+                                    StatusMessage::from(format!("/{}", self.command_buffer));
+                            }
+
+                            _ => {}
                         }
-                        self.status_message =
-                            StatusMessage::from(format!("/{}", self.command_buffer));
-                    }
+                        self.refresh_screen()?;
+                    },
 
                     Key::Char(c) => {
                         self.command_buffer.push(c);
-                        if let Some(position) = self
-                            .document
-                            .find(&self.command_buffer, &self.position_buffer)
-                        {
+                        if let Some(position) = self.document.find(
+                            &self.command_buffer,
+                            &self.position_buffer,
+                            SearchDirection::Forward,
+                        ) {
                             self.cursor_position = position;
                             self.scroll();
                         } else {

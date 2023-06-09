@@ -1,3 +1,4 @@
+use crate::SearchDirection;
 use std::cmp;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -81,15 +82,37 @@ impl Row {
         self.len += new.len;
     }
 
-    pub fn find(&self, query: &str, after: usize) -> Option<usize> {
-        let substring: String = self.string[..].graphemes(true).skip(after).collect();
-        let matching_byte_index = substring.find(query);
-        if let Some(index) = matching_byte_index {
+    pub fn find(&self, query: &str, at: usize, direction: SearchDirection) -> Option<usize> {
+        if at > self.len {
+            return None;
+        }
+        let start = if direction == SearchDirection::Forward {
+            at
+        } else {
+            0
+        };
+        let end = if direction == SearchDirection::Forward {
+            self.len
+        } else {
+            at
+        };
+        #[allow(clippy::integer_arithmetic)]
+        let substring: String = self.string[..]
+            .graphemes(true)
+            .skip(start)
+            .take(end - start)
+            .collect();
+        let matching_byte_index = if direction == SearchDirection::Forward {
+            substring.find(query)
+        } else {
+            substring.rfind(query)
+        };
+        if let Some(mathing_byte_index) = matching_byte_index {
             for (grapheme_index, (byte_index, _)) in
                 substring[..].grapheme_indices(true).enumerate()
             {
-                if byte_index == index {
-                    return Some(after + grapheme_index);
+                if byte_index == mathing_byte_index {
+                    return Some(grapheme_index + start);
                 }
             }
         }

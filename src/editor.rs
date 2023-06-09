@@ -313,6 +313,7 @@ impl Editor {
                         self.status_message = StatusMessage::from(String::from(""));
                         self.cursor_position = self.position_buffer.clone();
                         self.mode = Mode::Normal;
+                        self.document.highlight(None);
                         Terminal::change_cursor_style(&CursorStyle::Block);
                     }
                     Key::Char('\n') => loop {
@@ -324,6 +325,7 @@ impl Editor {
                                 self.status_message = StatusMessage::from(String::from(""));
                                 self.cursor_position = self.position_buffer.clone();
                                 self.mode = Mode::Normal;
+                                self.document.highlight(None);
                                 Terminal::change_cursor_style(&CursorStyle::Block);
                                 break;
                             }

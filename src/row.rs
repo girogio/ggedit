@@ -41,17 +41,7 @@ impl Row {
 
                 if highlighting_type != current_highlighting {
                     current_highlighting = highlighting_type;
-                    let start_highlight: String = format!(
-                        "{}{}",
-                        match highlighting_type.to_bg_color() {
-                            Some(color) => color::Bg(color).to_string(),
-                            None => color::Bg(color::Reset).to_string(),
-                        },
-                        match highlighting_type.to_fg_color() {
-                            Some(color) => color::Fg(color).to_string(),
-                            None => color::Fg(color::Reset).to_string(),
-                        },
-                    );
+                    let start_highlight: String = highlighting_type.to_string();
                     result.push_str(&start_highlight[..]);
                 }
 

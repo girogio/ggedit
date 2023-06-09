@@ -10,6 +10,7 @@
 )]
 mod document;
 mod editor;
+mod highlighting;
 mod row;
 mod terminal;
 

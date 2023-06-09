@@ -372,6 +372,7 @@ impl Editor {
                             SearchDirection::Forward,
                         ) {
                             self.cursor_position = position;
+                            self.document.highlight(Some(&self.command_buffer));
                             self.scroll();
                         } else {
                             self.status_message = StatusMessage::from(format!(

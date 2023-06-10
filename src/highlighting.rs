@@ -5,6 +5,8 @@ pub enum Type {
     None,
     Number,
     SearchMatch,
+    String,
+    Character,
 }
 
 impl Type {
@@ -12,13 +14,17 @@ impl Type {
         match self {
             Type::None => None,
             Type::Number => None,
+            Type::Character => None,
             Type::SearchMatch => Some(Bg(color::Rgb(255, 255, 0))),
+            Type::String => None,
         }
     }
 
     pub fn to_fg_color(&self) -> Option<color::Fg<color::Rgb>> {
         match self {
             Type::None => None,
+            Type::Character => Some(Fg(color::Rgb(255, 234, 96))),
+            Type::String => Some(Fg(color::Rgb(211, 54, 130))),
             Type::Number => Some(Fg(color::Rgb(232, 165, 165))),
             Type::SearchMatch => Some(Fg(color::Rgb(0, 0, 0))),
         }
@@ -30,12 +36,12 @@ impl ToString for Type {
         format!(
             "{}{}",
             match self.to_bg_color() {
-                Some(color) => color.to_string(),
                 None => Bg(color::Reset).to_string(),
+                Some(color) => color.to_string(),
             },
             match self.to_fg_color() {
-                Some(color) => color.to_string(),
                 None => Fg(color::Reset).to_string(),
+                Some(color) => color.to_string(),
             }
         )
     }

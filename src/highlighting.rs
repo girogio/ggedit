@@ -7,6 +7,7 @@ pub enum Type {
     SearchMatch,
     String,
     Character,
+    Comment,
 }
 
 impl Type {
@@ -17,6 +18,7 @@ impl Type {
             Type::Character => None,
             Type::SearchMatch => Some(Bg(color::Rgb(255, 255, 0))),
             Type::String => None,
+            Type::Comment => None,
         }
     }
 
@@ -24,6 +26,7 @@ impl Type {
         match self {
             Type::None => None,
             Type::Character => Some(Fg(color::Rgb(255, 234, 96))),
+            Type::Comment => Some(Fg(color::Rgb(124, 124, 124))),
             Type::String => Some(Fg(color::Rgb(211, 54, 130))),
             Type::Number => Some(Fg(color::Rgb(232, 165, 165))),
             Type::SearchMatch => Some(Fg(color::Rgb(0, 0, 0))),

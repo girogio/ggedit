@@ -156,6 +156,12 @@ impl Editor {
                 };
             }
         }
+        Terminal::change_cursor_style(match self.mode {
+            Mode::Normal => CursorStyle::Block,
+            Mode::Insert => CursorStyle::Bar,
+            Mode::Command => CursorStyle::Block,
+            Mode::Search => CursorStyle::Block,
+        });
         Terminal::show_cursor();
         Terminal::flush()
     }
@@ -167,24 +173,41 @@ impl Editor {
             // While in normal mode
             Mode::Normal => match pressed_key {
                 // Command mutators
-                Key::Char('i') => {
-                    self.mode = Mode::Insert;
-                    Terminal::change_cursor_style(&CursorStyle::Bar);
-                }
+                Key::Char('i') => self.switch_mode(Mode::Insert),
                 Key::Char('a') => {
                     self.move_cursor(Key::Right);
-                    self.mode = Mode::Insert;
-                    Terminal::change_cursor_style(&CursorStyle::Bar);
+                    self.switch_mode(Mode::Insert);
                 }
-                Key::Char(':') => {
-                    self.mode = Mode::Command;
-                    self.status_message = StatusMessage::from(String::from(":"));
+                Key::Char(':') => self.switch_mode(Mode::Command),
+                Key::Char('/') => self.switch_mode(Mode::Search),
+                Key::Char('o') => {
+                    self.move_cursor(Key::End);
+                    self.document.insert_newline(&self.cursor_position);
+                    self.switch_mode(Mode::Insert);
+                    self.move_cursor(Key::Down);
                 }
-                Key::Char('/') => {
-                    self.mode = Mode::Search;
-                    self.position_buffer = self.cursor_position.clone();
-                    self.status_message = StatusMessage::from(String::from("/"));
+                Key::Char('O') => {
+                    self.move_cursor(Key::Home);
+                    self.document.insert_newline(&self.cursor_position);
+                    self.switch_mode(Mode::Insert);
                 }
+
+                Key::Char('d') => loop {
+                    if let Some(key) = Terminal::read_key().ok() {
+                        match key {
+                            Key::Char('d') => {
+                                self.document.delete_line(&self.cursor_position);
+                                break;
+                            }
+                            Key::Char('w') => {
+                                // self.document.delete_word(&self.cursor_position);
+                                break;
+                            }
+                            Key::Esc => break,
+                            _ => (),
+                        }
+                    }
+                },
 
                 // Movement keys
                 Key::Up
@@ -208,9 +231,8 @@ impl Editor {
             Mode::Insert => match pressed_key {
                 // Mode mutators
                 Key::Esc => {
-                    self.mode = Mode::Normal;
                     self.move_cursor(Key::Left);
-                    Terminal::change_cursor_style(&CursorStyle::Block);
+                    self.switch_mode(Mode::Normal);
                 }
                 // Movement keys
                 Key::Up | Key::Down | Key::Left | Key::Right => self.move_cursor(pressed_key),
@@ -237,9 +259,8 @@ impl Editor {
                     self.status_message = StatusMessage::from(format!(":{}", self.command_buffer));
                 }
                 Key::Esc => {
-                    self.mode = Mode::Normal;
                     self.command_buffer.clear();
-                    Terminal::change_cursor_style(&CursorStyle::Block);
+                    self.switch_mode(Mode::Normal);
                 }
                 Key::Char('\n') => {
                     let command_buffer_args = self
@@ -283,8 +304,8 @@ impl Editor {
                             ))
                         }
                     }
-                    self.mode = Mode::Normal;
                     self.command_buffer.clear();
+                    self.switch_mode(Mode::Normal);
                 }
                 Key::Char(c) => {
                     self.command_buffer.push(c);
@@ -312,21 +333,18 @@ impl Editor {
                         self.command_buffer.clear();
                         self.status_message = StatusMessage::from(String::from(""));
                         self.cursor_position = self.position_buffer.clone();
-                        self.mode = Mode::Normal;
+                        self.switch_mode(Mode::Normal);
                         self.document.highlight(None);
-                        Terminal::change_cursor_style(&CursorStyle::Block);
                     }
                     Key::Char('\n') => loop {
                         let directional_key = Terminal::read_key()?;
 
                         match directional_key {
                             Key::Esc => {
-                                self.command_buffer.clear();
-                                self.status_message = StatusMessage::from(String::from(""));
                                 self.cursor_position = self.position_buffer.clone();
-                                self.mode = Mode::Normal;
+                                self.switch_mode(Mode::Normal);
                                 self.document.highlight(None);
-                                Terminal::change_cursor_style(&CursorStyle::Block);
+                                Terminal::change_cursor_style(CursorStyle::Block);
                                 break;
                             }
 
@@ -568,6 +586,27 @@ impl Editor {
             text.truncate(self.terminal.size().width as usize);
             print!("{}", text);
         }
+    }
+
+    fn switch_mode(&mut self, mode: Mode) {
+        match mode {
+            Mode::Normal => {
+                Terminal::change_cursor_style(CursorStyle::Block);
+                self.command_buffer.clear();
+                self.status_message = StatusMessage::from(String::from(""));
+            }
+            Mode::Insert => {
+                Terminal::change_cursor_style(CursorStyle::Bar);
+            }
+            Mode::Command => {
+                self.status_message = StatusMessage::from(String::from(":"));
+            }
+            Mode::Search => {
+                self.position_buffer = self.cursor_position.clone();
+                self.status_message = StatusMessage::from(String::from("/"));
+            }
+        }
+        self.mode = mode;
     }
 }
 

@@ -97,8 +97,8 @@ impl Terminal {
         print!("{}", color::Fg(color::Reset));
     }
 
-    pub fn change_cursor_style(style: &CursorStyle) {
-        match *style {
+    pub fn change_cursor_style(style: CursorStyle) {
+        match style {
             CursorStyle::Bar => print!("{}", cursor::BlinkingBar),
             CursorStyle::Block => print!("{}", cursor::SteadyBlock),
             CursorStyle::Underline => print!("{}", cursor::SteadyUnderline),

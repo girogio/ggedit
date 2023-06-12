@@ -158,6 +158,14 @@ impl Document {
         }
     }
 
+    pub fn delete_line(&mut self, at: &Position) {
+        if at.y >= self.rows.len() {
+            return;
+        }
+        self.dirty = true;
+        self.rows.remove(at.y);
+    }
+
     pub fn insert_newline(&mut self, at: &Position) {
         match Ord::cmp(&at.y, &self.rows.len()) {
             std::cmp::Ordering::Less => {
